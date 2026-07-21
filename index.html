@@ -14,6 +14,7 @@
 <meta name="theme-color" content="#16653f">
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDVEdj8idJbpwGZDWLIuCKrk-caN5tOwag"></script>
 <style>
   :root {
     --ink: #1a1a1a;
@@ -197,10 +198,6 @@
 
   <div class="install-hint" id="installHint">
     Tip: tap the Share icon in Safari, then "Add to Home Screen" to install this as an app.
-  </div>
-
-  <div class="key-hint">
-    Before mileage auto-calculation works, replace <code>YOUR_API_KEY_HERE</code> near the bottom of this file with your Google Maps API key (Distance Matrix API enabled), and set <code>HOME_ADDRESS</code> to your starting address.
   </div>
 
   <div class="cards" id="cards"></div>
@@ -462,22 +459,31 @@
     document.getElementById("rateOut").textContent = (rate * 100).toFixed(1) + "¢/mi";
   }
 
-  async function getMilesFromHome(destinationAddress) {
-    var origin = encodeURIComponent(HOME_ADDRESS);
-    var destination = encodeURIComponent(destinationAddress);
-    var url = "https://maps.googleapis.com/maps/api/distancematrix/json?origins=" + origin + "&destinations=" + destination + "&units=imperial&key=" + GOOGLE_MAPS_API_KEY;
-
-    var response = await fetch(url);
-    var data = await response.json();
-
-    if (data.status !== "OK") {
-      throw new Error(data.error_message || "Distance Matrix request failed");
-    }
-    var element = data.rows && data.rows[0] && data.rows[0].elements && data.rows[0].elements[0];
-    if (!element || element.status !== "OK") {
-      throw new Error("Could not calculate distance for that address");
-    }
-    return element.distance.value / 1609.344;
+  function getMilesFromHome(destinationAddress) {
+    return new Promise(function (resolve, reject) {
+      if (typeof google === "undefined" || !google.maps) {
+        reject(new Error("Google Maps failed to load. Check your API key and that Maps JavaScript API is enabled."));
+        return;
+      }
+      var service = new google.maps.DistanceMatrixService();
+      service.getDistanceMatrix({
+        origins: [HOME_ADDRESS],
+        destinations: [destinationAddress],
+        travelMode: google.maps.TravelMode.DRIVING,
+        unitSystem: google.maps.UnitSystem.IMPERIAL
+      }, function (response, status) {
+        if (status !== "OK") {
+          reject(new Error("Distance Matrix request failed (" + status + ")"));
+          return;
+        }
+        var element = response.rows && response.rows[0] && response.rows[0].elements && response.rows[0].elements[0];
+        if (!element || element.status !== "OK") {
+          reject(new Error("Could not calculate distance for that address"));
+          return;
+        }
+        resolve(element.distance.value / 1609.344);
+      });
+    });
   }
 
   document.getElementById("address").addEventListener("input", function () {
