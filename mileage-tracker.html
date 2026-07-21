@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Mileage & Sales Tracker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --ink: #1a1a1a;
+    --sub: #666666;
+    --line: #e2e2e0;
+    --bg-card: #f7f7f5;
+    --bg-page: #ffffff;
+    --accent: #16653f;
+    --accent-bg: #e7f5ec;
+    --danger: #b3261e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink: #f0f0ee;
+      --sub: #a3a39c;
+      --line: #3a3a37;
+      --bg-card: #232320;
+      --bg-page: #161614;
+      --accent: #6fd39a;
+      --accent-bg: #1c3327;
+      --danger: #ff8a80;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg-page);
+    color: var(--ink);
+    padding-bottom: 40px;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 20px 16px 8px; }
+  h1 { font-size: 20px; font-weight: 700; margin: 0 0 2px; letter-spacing: -0.01em; }
+  .subtitle { font-size: 13px; color: var(--sub); margin: 0 0 20px; }
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 8px;
+    margin-bottom: 22px;
+  }
+  .card {
+    background: var(--bg-card);
+    border-radius: 10px;
+    padding: 10px 12px;
+  }
+  .card.hi { background: var(--accent-bg); }
+  .card .label { font-size: 10.5px; color: var(--sub); text-transform: uppercase; letter-spacing: 0.03em; }
+  .card.hi .label { color: var(--accent); }
+  .card .value { font-size: 17px; font-weight: 700; margin-top: 2px; }
+  .card.hi .value { color: var(--accent); }
+
+  form {
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 20px;
+  }
+  .form-title { font-size: 14px; font-weight: 700; margin-bottom: 12px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+  .field { margin-bottom: 10px; }
+  .field label { display: block; font-size: 11.5px; color: var(--sub); margin-bottom: 4px; }
+  input, select, textarea {
+    width: 100%;
+    padding: 10px 11px;
+    font-size: 15px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--bg-page);
+    color: var(--ink);
+    font-family: inherit;
+    -webkit-appearance: none;
+  }
+  textarea { min-height: 54px; resize: vertical; }
+  .readonly {
+    padding: 10px 11px;
+    font-size: 15px;
+    border-radius: 8px;
+    background: var(--line);
+    color: var(--ink);
+    display: flex;
+    align-items: center;
+    min-height: 40px;
+  }
+  .btn-row { display: flex; gap: 8px; margin-top: 6px; }
+  button {
+    font-family: inherit;
+    cursor: pointer;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .btn-primary {
+    flex: 1;
+    padding: 12px;
+    background: var(--ink);
+    color: var(--bg-page);
+    border: none;
+  }
+  .btn-secondary {
+    padding: 12px 16px;
+    background: var(--bg-page);
+    border: 1px solid var(--line);
+    color: var(--ink);
+  }
+  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .toolbar button {
+    font-size: 12.5px;
+    padding: 9px 13px;
+    background: var(--bg-page);
+    border: 1px solid var(--line);
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .log-title { font-size: 14px; font-weight: 700; margin-bottom: 10px; }
+  .trip {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 8px;
+  }
+  .trip-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .trip-customer { font-weight: 700; font-size: 14.5px; }
+  .trip-date { font-size: 12px; color: var(--sub); white-space: nowrap; }
+  .trip-address { font-size: 12.5px; color: var(--sub); margin-top: 2px; }
+  .trip-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .pill {
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 20px;
+    background: var(--bg-card);
+    color: var(--sub);
+  }
+  .pill.sold { background: var(--accent-bg); color: var(--accent); font-weight: 600; }
+  .trip-actions { display: flex; gap: 10px; margin-top: 10px; }
+  .trip-actions button {
+    font-size: 12px;
+    padding: 6px 10px;
+    background: var(--bg-page);
+    border: 1px solid var(--line);
+    color: var(--ink);
+  }
+  .trip-actions .del { color: var(--danger); }
+  .empty { font-size: 13px; color: var(--sub); padding: 20px 0; text-align: center; }
+  .note { font-size: 11px; color: var(--sub); margin-top: 8px; margin-bottom: -4px; }
+  .footer-note { font-size: 10.5px; color: var(--sub); text-align: center; margin-top: 24px; }
+  #file-input { display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Mileage &amp; sales tracker</h1>
+  <p class="subtitle" id="subtitle">Loading your trips…</p>
+
+  <div class="cards" id="cards"></div>
+
+  <form id="trip-form">
+    <div class="form-title" id="form-title">Add appointment</div>
+
+    <div class="row">
+      <div class="field">
+        <label for="date">Date</label>
+        <input type="date" id="date" required />
+      </div>
+      <div class="field">
+        <label for="jobType">Job type</label>
+        <select id="jobType">
+          <option>New Lead</option>
+          <option>Referral</option>
+          <option>Follow-Up</option>
+          <option>Repeat Customer</option>
+          <option>Cold Call</option>
+          <option>Warm Lead</option>
+          <option>Other</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field" id="other-field" style="display:none;">
+      <label for="jobTypeOther">Specify job type</label>
+      <input type="text" id="jobTypeOther" />
+    </div>
+
+    <div class="field">
+      <label for="customer">Customer name</label>
+      <input type="text" id="customer" placeholder="Jane Smith" required />
+    </div>
+
+    <div class="field">
+      <label for="address">Address</label>
+      <input type="text" id="address" placeholder="123 Main St, Middletown, CT" required />
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label for="miles">One-way miles</label>
+        <input type="number" id="miles" step="0.1" min="0" required />
+      </div>
+      <div class="field">
+        <label>Round-trip (auto)</label>
+        <div class="readonly" id="rtMiles">0.0 mi</div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label for="sold">Sold?</label>
+        <select id="sold">
+          <option>No</option>
+          <option>Yes</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="contract">Contract amount ($)</label>
+        <input type="number" id="contract" step="0.01" min="0" />
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label for="commission">Commission ($)</label>
+        <input type="number" id="commission" step="0.01" min="0" />
+      </div>
+      <div class="field">
+        <label>IRS rate (auto)</label>
+        <div class="readonly" id="rateOut">–</div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="notes">Notes</label>
+      <textarea id="notes"></textarea>
+    </div>
+
+    <div class="btn-row">
+      <button type="submit" class="btn-primary" id="submit-btn">Add trip</button>
+      <button type="button" class="btn-secondary" id="cancel-btn" style="display:none;">Cancel</button>
+    </div>
+  </form>
+
+  <div class="toolbar">
+    <button id="export-xlsx"><i class="ti ti-download"></i> Export to Excel</button>
+    <button id="export-csv"><i class="ti ti-download"></i> Export to CSV</button>
+    <button id="import-btn"><i class="ti ti-upload"></i> Import file</button>
+    <input type="file" id="file-input" accept=".csv,.xlsx,.xls" />
+  </div>
+
+  <div class="log-title" id="log-title">Trip log</div>
+  <div id="trip-list"></div>
+
+  <div class="footer-note">Your data is saved to your Claude account and syncs across your devices.</div>
+</div>
+
+<script>
+(function () {
+  var JOB_TYPES = ["New Lead", "Referral", "Follow-Up", "Repeat Customer", "Cold Call", "Warm Lead", "Other"];
+  var STORAGE_KEY = "mileage_tracker_trips";
+  var RATE_SCHEDULE = [
+    { start: "2025-01-01", end: "2025-12-31", rate: 0.70 },
+    { start: "2026-01-01", end: "2026-06-30", rate: 0.725 },
+    { start: "2026-07-01", end: "2099-12-31", rate: 0.76 }
+  ];
+
+  var trips = [];
+  var editingId = null;
+
+  function getRateForDate(dateStr) {
+    if (!dateStr) return RATE_SCHEDULE[RATE_SCHEDULE.length - 1].rate;
+    var d = new Date(dateStr + "T00:00:00");
+    for (var i = 0; i < RATE_SCHEDULE.length; i++) {
+      var p = RATE_SCHEDULE[i];
+      if (d >= new Date(p.start + "T00:00:00") && d <= new Date(p.end + "T23:59:59")) return p.rate;
+    }
+    return RATE_SCHEDULE[RATE_SCHEDULE.length - 1].rate;
+  }
+
+  function todayStr() {
+    var d = new Date();
+    return d.toISOString().slice(0, 10);
+  }
+
+  function fmtMoney(n) {
+    return "$" + (Number(n) || 0).toFixed(2);
+  }
+
+  async function loadTrips() {
+    try {
+      var res = await window.storage.get(STORAGE_KEY, false);
+      trips = res && res.value ? JSON.parse(res.value) : [];
+    } catch (e) {
+      trips = [];
+    }
+    document.getElementById("subtitle").textContent = "Log a trip after each appointment — miles, sales, and commission all in one place.";
+    render();
+  }
+
+  async function saveTrips() {
+    try {
+      await window.storage.set(STORAGE_KEY, JSON.stringify(trips), false);
+    } catch (e) {
+      console.error("Save failed", e);
+    }
+  }
+
+  function enrich(t) {
+    var roundTrip = t.oneWayMiles * 2;
+    var rate = getRateForDate(t.date);
+    var deduction = roundTrip * rate;
+    return Object.assign({}, t, { roundTrip: roundTrip, rate: rate, deduction: deduction });
+  }
+
+  function computeTotals(list) {
+    var count = list.length;
+    var miles = list.reduce(function (s, t) { return s + t.roundTrip; }, 0);
+    var deduction = list.reduce(function (s, t) { return s + t.deduction; }, 0);
+    var sold = list.filter(function (t) { return t.sold === "Yes"; });
+    var sales = sold.reduce(function (s, t) { return s + t.contractAmount; }, 0);
+    var commission = sold.reduce(function (s, t) { return s + t.commission; }, 0);
+    return {
+      count: count,
+      miles: miles,
+      deduction: deduction,
+      sales: sales,
+      commission: commission,
+      avgMiles: count ? miles / count : 0
+    };
+  }
+
+  function render() {
+    var enriched = trips.map(enrich).sort(function (a, b) {
+      return a.date < b.date ? -1 : a.date > b.date ? 1 : 0;
+    });
+    var totals = computeTotals(enriched);
+
+    document.getElementById("cards").innerHTML =
+      card("Total trips", totals.count, false) +
+      card("Total miles", totals.miles.toFixed(1), false) +
+      card("IRS deduction", fmtMoney(totals.deduction), true) +
+      card("Total sales", fmtMoney(totals.sales), true) +
+      card("Commission", fmtMoney(totals.commission), true) +
+      card("Avg miles/appt", totals.avgMiles.toFixed(1), false);
+
+    document.getElementById("log-title").textContent = "Trip log (" + trips.length + ")";
+
+    var listEl = document.getElementById("trip-list");
+    if (!enriched.length) {
+      listEl.innerHTML = '<div class="empty">No trips yet. Add your first appointment above.</div>';
+      return;
+    }
+    var reversed = enriched.slice().reverse();
+    listEl.innerHTML = reversed.map(function (t) {
+      return (
+        '<div class="trip" data-id="' + t.id + '">' +
+          '<div class="trip-top">' +
+            '<div class="trip-customer">' + escapeHtml(t.customer) + '</div>' +
+            '<div class="trip-date">' + t.date + '</div>' +
+          '</div>' +
+          '<div class="trip-address">' + escapeHtml(t.address) + '</div>' +
+          '<div class="trip-meta">' +
+            '<span class="pill">' + escapeHtml(t.jobType) + '</span>' +
+            '<span class="pill">' + t.roundTrip.toFixed(1) + ' mi rt</span>' +
+            '<span class="pill">' + fmtMoney(t.deduction) + ' deduction</span>' +
+            (t.sold === "Yes" ? '<span class="pill sold">Sold ' + fmtMoney(t.contractAmount) + '</span>' : '<span class="pill">Not sold</span>') +
+            (t.sold === "Yes" && t.commission ? '<span class="pill sold">' + fmtMoney(t.commission) + ' comm.</span>' : '') +
+          '</div>' +
+          (t.notes ? '<div class="trip-address" style="margin-top:6px;">' + escapeHtml(t.notes) + '</div>' : '') +
+          '<div class="trip-actions">' +
+            '<button class="edit-btn"><i class="ti ti-edit"></i> Edit</button>' +
+            '<button class="del delete-btn"><i class="ti ti-trash"></i> Delete</button>' +
+          '</div>' +
+        '</div>'
+      );
+    }).join("");
+
+    Array.prototype.forEach.call(listEl.querySelectorAll(".edit-btn"), function (btn) {
+      btn.addEventListener("click", function () {
+        var id = btn.closest(".trip").getAttribute("data-id");
+        startEdit(id);
+      });
+    });
+    Array.prototype.forEach.call(listEl.querySelectorAll(".delete-btn"), function (btn) {
+      btn.addEventListener("click", function () {
+        var id = btn.closest(".trip").getAttribute("data-id");
+        deleteTrip(id);
+      });
+    });
+  }
+
+  function card(label, value, hi) {
+    return '<div class="card' + (hi ? ' hi' : '') + '"><div class="label">' + label + '</div><div class="value">' + value + '</div></div>';
+  }
+
+  function escapeHtml(s) {
+    var d = document.createElement("div");
+    d.textContent = s == null ? "" : String(s);
+    return d.innerHTML;
+  }
+
+  function updateRateAndRt() {
+    var miles = parseFloat(document.getElementById("miles").value) || 0;
+    document.getElementById("rtMiles").textContent = (miles * 2).toFixed(1) + " mi";
+    var date = document.getElementById("date").value;
+    var rate = getRateForDate(date);
+    document.getElementById("rateOut").textContent = (rate * 100).toFixed(1) + "¢/mi";
+  }
+
+  function resetForm() {
+    document.getElementById("trip-form").reset();
+    document.getElementById("date").value = todayStr();
+    document.getElementById("other-field").style.display = "none";
+    editingId = null;
+    document.getElementById("form-title").textContent = "Add appointment";
+    document.getElementById("submit-btn").textContent = "Add trip";
+    document.getElementById("cancel-btn").style.display = "none";
+    updateRateAndRt();
+  }
+
+  function startEdit(id) {
+    var t = trips.find(function (x) { return x.id === id; });
+    if (!t) return;
+    editingId = id;
+    document.getElementById("date").value = t.date;
+    var isKnown = JOB_TYPES.indexOf(t.jobType) !== -1 && t.jobType !== "Other";
+    document.getElementById("jobType").value = isKnown ? t.jobType : "Other";
+    document.getElementById("other-field").style.display = isKnown ? "none" : "block";
+    document.getElementById("jobTypeOther").value = isKnown ? "" : t.jobType;
+    document.getElementById("customer").value = t.customer;
+    document.getElementById("address").value = t.address;
+    document.getElementById("miles").value = t.oneWayMiles;
+    document.getElementById("sold").value = t.sold;
+    document.getElementById("contract").value = t.contractAmount || "";
+    document.getElementById("commission").value = t.commission || "";
+    document.getElementById("notes").value = t.notes || "";
+    document.getElementById("form-title").textContent = "Edit trip";
+    document.getElementById("submit-btn").textContent = "Save changes";
+    document.getElementById("cancel-btn").style.display = "inline-block";
+    updateRateAndRt();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function deleteTrip(id) {
+    if (!confirm("Delete this trip?")) return;
+    trips = trips.filter(function (t) { return t.id !== id; });
+    if (editingId === id) resetForm();
+    saveTrips();
+    render();
+  }
+
+  document.getElementById("jobType").addEventListener("change", function () {
+    document.getElementById("other-field").style.display = this.value === "Other" ? "block" : "none";
+  });
+  document.getElementById("miles").addEventListener("input", updateRateAndRt);
+  document.getElementById("date").addEventListener("change", updateRateAndRt);
+  document.getElementById("cancel-btn").addEventListener("click", resetForm);
+
+  document.getElementById("trip-form").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var jobTypeSel = document.getElementById("jobType").value;
+    var jobType = jobTypeSel === "Other" ? (document.getElementById("jobTypeOther").value.trim() || "Other") : jobTypeSel;
+    var record = {
+      id: editingId || (Date.now() + Math.random().toString(36).slice(2)),
+      date: document.getElementById("date").value,
+      customer: document.getElementById("customer").value.trim(),
+      jobType: jobType,
+      address: document.getElementById("address").value.trim(),
+      oneWayMiles: Number(document.getElementById("miles").value) || 0,
+      sold: document.getElementById("sold").value,
+      contractAmount: Number(document.getElementById("contract").value) || 0,
+      commission: Number(document.getElementById("commission").value) || 0,
+      notes: document.getElementById("notes").value.trim()
+    };
+    if (editingId) {
+      trips = trips.map(function (t) { return t.id === editingId ? record : t; });
+    } else {
+      trips.push(record);
+    }
+    saveTrips();
+    resetForm();
+    render();
+  });
+
+  document.getElementById("export-xlsx").addEventListener("click", function () {
+    exportFile("xlsx");
+  });
+  document.getElementById("export-csv").addEventListener("click", function () {
+    exportFile("csv");
+  });
+
+  function exportFile(type) {
+    var enriched = trips.map(enrich).sort(function (a, b) {
+      return a.date < b.date ? -1 : a.date > b.date ? 1 : 0;
+    });
+    var rows = enriched.map(function (t) {
+      return {
+        Date: t.date,
+        Customer: t.customer,
+        "Job Type": t.jobType,
+        Address: t.address,
+        "One-Way Miles": t.oneWayMiles,
+        "Round-Trip Miles": t.roundTrip,
+        "IRS Rate": t.rate,
+        "IRS Deduction": Number(t.deduction.toFixed(2)),
+        Sold: t.sold,
+        "Contract Amount": t.contractAmount,
+        Commission: t.commission,
+        Notes: t.notes
+      };
+    });
+    var ws = XLSX.utils.json_to_sheet(rows);
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Trips");
+    if (type === "xlsx") {
+      XLSX.writeFile(wb, "mileage_tracker.xlsx");
+    } else {
+      var csv = XLSX.utils.sheet_to_csv(ws);
+      var blob = new Blob([csv], { type: "text/csv" });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = "mileage_tracker.csv";
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  document.getElementById("import-btn").addEventListener("click", function () {
+    document.getElementById("file-input").click();
+  });
+
+  document.getElementById("file-input").addEventListener("change", function (e) {
+    var file = e.target.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function (evt) {
+      var data = new Uint8Array(evt.target.result);
+      var wb = XLSX.read(data, { type: "array" });
+      var sheet = wb.Sheets[wb.SheetNames[0]];
+      var rows = XLSX.utils.sheet_to_json(sheet);
+      var imported = rows.filter(function (r) { return r.Customer || r.customer; }).map(function (r) {
+        return {
+          id: Date.now() + Math.random().toString(36).slice(2),
+          date: r.Date || r.date || todayStr(),
+          customer: r.Customer || r.customer || "",
+          jobType: r["Job Type"] || r.jobType || "Other",
+          address: r.Address || r.address || "",
+          oneWayMiles: Number(r["One-Way Miles"] || r.oneWayMiles || 0),
+          sold: r.Sold || r.sold || "No",
+          contractAmount: Number(r["Contract Amount"] || r.contractAmount || 0),
+          commission: Number(r.Commission || r.commission || 0),
+          notes: r.Notes || r.notes || ""
+        };
+      });
+      trips = trips.concat(imported);
+      saveTrips();
+      render();
+    };
+    reader.readAsArrayBuffer(file);
+    e.target.value = "";
+  });
+
+  document.getElementById("date").value = todayStr();
+  updateRateAndRt();
+  loadTrips();
+})();
+</script>
+</body>
+</html>
